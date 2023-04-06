@@ -71,6 +71,7 @@ public class Vision implements Subsystem {
 
     public Vision() {
         feed = net.getTable("limelight");
+        feed.getEntry("pipeline").setDouble(0.);
         Shuffleboard.getTab("Debugging").addDouble("x", () -> distFrom(Level.MID, Pickup.CONE));
         Shuffleboard.getTab("Debugging").addDouble("tx", () -> feed.getEntry("tx").getDouble(90.0));
         Shuffleboard.getTab("Debugging").addDouble("ty", () -> feed.getEntry("ty").getDouble(90.0));
@@ -91,11 +92,15 @@ public class Vision implements Subsystem {
         }
     }
 
+    public NetworkTable feed() {
+        return this.feed;
+    }
+
     public Pose3d arr6ToPose3d(double[] arr) {
-        return new Pose3d(
+        return arr.length > 0 ? new Pose3d(
             new Translation3d(arr[0], arr[1], arr[2]),
-            new Rotation3d(arr[3], arr[4], arr[5])
-        );
+            new Rotation3d(Math.toRadians(arr[3]), Math.toRadians(arr[4]), Math.toRadians(arr[5]))
+        ) : new Pose3d();
     }
 
     public Tag tag() {
@@ -104,8 +109,12 @@ public class Vision implements Subsystem {
 
     public Pose3d poseTagRelative() {
         return arr6ToPose3d(feed
-            .getEntry("camerapose_targetspace")
+            .getEntry("targetpose_robotspace")
             .getDoubleArray(new double[] { 0, 0, 0, 0, 0, 0 })
         );
+    }
+
+    public boolean hasTarget() {
+        return feed.getEntry("tv").getDouble(0.) == 1.0;
     }
 }

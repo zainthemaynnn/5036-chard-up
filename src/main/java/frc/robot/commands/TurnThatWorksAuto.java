@@ -20,7 +20,7 @@ public class TurnThatWorksAuto implements Command {
 
     @Override
     public void initialize() {
-        initial = drive.centerDist();
+        initial = drive.centerDistMeters();
         drive.arcadeDrive(0, .25 * Math.signum(dist));
     }
 

@@ -16,7 +16,7 @@ public class RobotMap {
     }
 
     public static enum PWM {
-        BLINKIN (9);
+        BLINKIN (3);
 
         private final int port;
 

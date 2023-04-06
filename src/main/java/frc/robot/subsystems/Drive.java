@@ -4,9 +4,12 @@
 
 package frc.robot.subsystems;
 
+import java.util.List;
+
 import com.kauailabs.navx.frc.AHRS;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.RelativeEncoder;
+import com.revrobotics.CANSparkMax.IdleMode;
 
 import edu.wpi.first.math.estimator.DifferentialDrivePoseEstimator;
 import edu.wpi.first.math.geometry.Pose2d;
@@ -20,11 +23,12 @@ import frc.ui.Dashboard;
 
 public class Drive implements Subsystem {
   private static final double TRACK_WIDTH = 24.0;
-  private static final double WHEEL_RADIUS = Units.inchesToMeters(3.0);
+  private static final double WHEEL_RADIUS_METERS = Units.inchesToMeters(3.0);
   private static final double GEAR_RATIO = 8.45;
-  private static final double k = Units.inchesToMeters((double) 2*Math.PI*WHEEL_RADIUS / GEAR_RATIO);
+  private static final double k = (double) 2*Math.PI*WHEEL_RADIUS_METERS / GEAR_RATIO;
 
   private CANSparkMax l1, l2, r1, r2;
+  private List<CANSparkMax> motors;
   private RelativeEncoder encL, encR;
   private AHRS gyro;
 
@@ -34,6 +38,8 @@ public class Drive implements Subsystem {
   private Pose2d pose;
 
   private Dashboard dashboard = new Dashboard("Drive");
+
+  private double pre_gyro = 0.;
 
   public Drive(
     CANSparkMax l1,
@@ -52,6 +58,7 @@ public class Drive implements Subsystem {
     this.l2 = l2;
     this.r1 = r1;
     this.r2 = r2;
+    this.motors = List.of(l1, l2, r1, r2);
     this.encL = encL;
     this.encR = encR;
     this.gyro = gyro;
@@ -63,34 +70,133 @@ public class Drive implements Subsystem {
     encL.setVelocityConversionFactor(k);
     encR.setVelocityConversionFactor(k);
 
+    l1.enableVoltageCompensation(12.0);
+    l2.enableVoltageCompensation(12.0);
+    r1.enableVoltageCompensation(12.0);
+    r2.enableVoltageCompensation(12.0);
+
     l2.follow(l1);
     r2.follow(r1);
+
+    gyro.resetDisplacement();
 
     dashboard
       .add(gyro, "gyro");
   }
 
-  public void arcadeDrive(double throttle, double wheel) {
-    l1.set(throttle + wheel);
-    r1.set(throttle - wheel);
+  public void encReset() {
+    encL.setPosition(0.0);
+    encR.setPosition(0.0);
   }
 
-  public double centerDist() {
+  public double rampRateAcc = 10.0;
+  public double rampRateDec = 10.0;
+  public boolean rampEnabled = true;
+  public double rampRateExp = 2.0;
+  private static final double EXPONENTIAL_RAMP_NEGATE_THRESHOLD_PERCENT = .05;
+
+  private double toRampedExp(double actual, double pow) {
+    if (rampEnabled) {
+      double res;
+      double absActual = Math.abs(actual), absPow = Math.abs(pow);
+      
+      // magnitude
+      if (Math.signum(pow) == Math.signum(actual)) {
+        if (absActual < absPow) {
+          res = absActual * Math.pow(rampRateExp, 0.020);
+        } else if (absActual > absPow) {
+          res = absActual * Math.pow(1/rampRateExp, 0.020);
+        } else {
+          res = absActual;
+        }
+      } else {
+        if (absActual > absPow) {
+          res = absActual * Math.pow(rampRateExp, 0.020);
+        } else if (absActual < absPow) {
+          res = absActual * Math.pow(1/rampRateExp, 0.020);
+        } else {
+          res = absActual;
+        }
+      }
+
+      // direction
+      if (res <= EXPONENTIAL_RAMP_NEGATE_THRESHOLD_PERCENT) {
+        if (pow == 0) {
+          res = 0;
+        } else {
+          res = Math.copySign(EXPONENTIAL_RAMP_NEGATE_THRESHOLD_PERCENT, pow);
+        }
+      } else {
+        res = Math.copySign(res, actual);
+      }
+
+      // align power
+      //if ((pow < res && res < actual) || (actual < res && res < pow)) {
+      //  res = pow;
+      //}
+
+      System.out.println(res);
+
+      return res;
+    } else {
+      return pow;
+    }
+  }
+
+  private double toRamped(double actual, double pow) {
+    double rampRate = Math.abs(actual) > Math.abs(pow) ? rampRateAcc : rampRateDec;
+    if (rampEnabled) {
+      if (pow > actual) {
+        return actual + Math.min(rampRate, Math.abs(pow - actual)) * 0.020;
+      } else if (pow < actual) {
+        return actual - Math.min(rampRate, Math.abs(pow - actual)) * 0.020;
+      } else {
+        return pow;
+      }
+    } else {
+      return pow;
+    }
+  }
+
+  public void arcadeDrive(double throttle, double wheel) {
+    l1.set(toRamped(l1.get(), throttle + wheel));
+    r1.set(toRamped(r1.get(), throttle - wheel));
+  }
+
+  public double centerDistMeters() {
     return (encL.getPosition() + encR.getPosition()) / 2;
   }
 
-  public double centerVel() {
+  public double centerVelMeters() {
     return (encL.getVelocity() + encR.getVelocity()) / 2;
   }
 
   public double angle() {
-    return gyro.getAngle();
+    return Math.toRadians(gyro.getAngle());
+  }
+
+  public double angleVel() {
+    var res = (gyro.getAngle() - pre_gyro) / 0.020;
+    pre_gyro = angle();
+    return res;
+  }
+
+  public double pitch() {
+    return Math.toRadians(gyro.getPitch());
+  }
+
+  public void setIdleMode(IdleMode mode) {
+    motors.forEach(m -> m.setIdleMode(mode));
+  }
+
+  public void setRampRate(double rate) {
+    motors.forEach(m -> m.setOpenLoopRampRate(rate));
   }
 
   @Override
   public void periodic() {
-      SmartDashboard.putNumber("enc", centerDist());
-      SmartDashboard.putNumber("encV", centerVel());
+      SmartDashboard.putNumber("enc", centerDistMeters());
+      SmartDashboard.putNumber("encV", centerVelMeters());
       SmartDashboard.putNumber("ppr", encL.getCountsPerRevolution());
   }
 }

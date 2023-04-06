@@ -2,6 +2,7 @@ package frc.robot.subsystems;
 
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.RelativeEncoder;
+import com.revrobotics.CANSparkMax.IdleMode;
 
 import edu.wpi.first.math.controller.ArmFeedforward;
 import edu.wpi.first.wpilibj.PowerDistribution;
@@ -21,7 +22,8 @@ public class Arm implements Subsystem {
         //motor.setSmartCurrentLimit(60);
         motor.enableVoltageCompensation(12.0);
         enc.setPositionConversionFactor(2*Math.PI/GEAR_RATIO);
-        enc.setPosition(0.);
+        enc.setPosition(0.0);
+        motor.setIdleMode(IdleMode.kBrake);
     }
 
     public void driveVolts(double pow) {
@@ -38,5 +40,13 @@ public class Arm implements Subsystem {
 
     public double position() {
         return enc.getPosition();
+    }
+
+    public void setPosition(double pos) {
+        enc.setPosition(pos);
+    }
+
+    public void reset() {
+        enc.setPosition(0.0);
     }
 }

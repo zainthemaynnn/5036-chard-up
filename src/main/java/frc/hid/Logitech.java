@@ -96,14 +96,18 @@ public class Logitech {
         return axisTriggers.get(axis);
     }
 
+    private double deadbandFilter(double x) {
+        return Math.abs(x) > .06 ? x : 0;
+    }
+
     public double getAxisValue(Axis axis) {
         switch (axis) {
             // invert Y axes
             case LEFT_Y:
             case RIGHT_Y:
-                return -joystick.getRawAxis(axis.ordinal());
+                return deadbandFilter(-joystick.getRawAxis(axis.ordinal()));
             default:
-                return joystick.getRawAxis(axis.ordinal());
+                return deadbandFilter(joystick.getRawAxis(axis.ordinal()));
         }
     }
 

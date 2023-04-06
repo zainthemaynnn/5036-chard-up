@@ -22,27 +22,23 @@ import frc.robot.subsystems.Drive;
 public class DriveAuto implements Command {
   private static final double P = 0., I = 0., D = 0.;
   private static final Constraints CONSTRAINTS = new Constraints(0., 0.);
-  private ProfiledPIDController pidController;
+  private PIDController pidController;
   private Drive drive;
 
-  public DriveAuto(Drive drive, State goal) {
-    pidController = new ProfiledPIDController(P, I, D, CONSTRAINTS);
-    this.drive = drive;
-    pidController.setGoal(goal);
-  }
-
   public DriveAuto(Drive drive, double goal) {
-    this(drive, new State(goal, 0.));
+    pidController = new PIDController(P, I, D);
+    this.drive = drive;
+    pidController.setSetpoint(goal);
   }
 
   @Override
   public void execute() {
-      drive.arcadeDrive(pidController.calculate(drive.centerDist()), 0.);
+      drive.arcadeDrive(.15, 0.);
   }
 
   @Override
   public boolean isFinished() {
-    return pidController.atGoal();
+    return pidController.atSetpoint();
   }
 
   @Override

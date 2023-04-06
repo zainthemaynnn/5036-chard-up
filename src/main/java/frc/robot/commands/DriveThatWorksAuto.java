@@ -20,13 +20,13 @@ public class DriveThatWorksAuto implements Command {
 
     @Override
     public void initialize() {
-        initial = drive.centerDist();
+        initial = drive.centerDistMeters();
         drive.arcadeDrive(.25 * Math.signum(dist), 0);
     }
 
     @Override
     public boolean isFinished() {
-        return Math.abs(drive.centerDist() - initial) < thresh;
+        return Math.abs(drive.centerDistMeters() - initial) < thresh;
     }
 
     @Override
